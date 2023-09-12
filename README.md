@@ -8,7 +8,7 @@ Supported ZTS:
 * `PP`  PlasmaPoints
 
 Telegram: [@zenonrafflebot](https://t.me/zenonrafflebot)  
-Announcements:  https://t.me/zenonraffle
+Announcements:  https://t.me/zenonraffle  
 Docs: https://zenon-raffle.gitbook.io/docs/
 
 ----
