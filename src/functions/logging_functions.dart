@@ -4,7 +4,7 @@ import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
 
 initLogger() {
-  Directory logDir = Directory(path.join('..', 'log'));
+  Directory logDir = Directory(path.join('.', 'log'));
   if (!logDir.existsSync()) {
     logDir.createSync(recursive: true);
   }
