@@ -261,7 +261,7 @@ class Raffle {
 
   Future<void> emergencyStop() async {
     logger.log(Level.WARNING, 'Admin called emergencyStop()');
-    emergencyRefund();
+    await emergencyRefund();
     raffleServiceEnabled = false;
   }
 }
