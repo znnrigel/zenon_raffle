@@ -258,16 +258,20 @@ Future<Hash> getMomentumHash(int height) async =>
 // We can attempt to mitigate DOS by proactively dealing with these
 Future<void> antiDos() async {
   List<AccountBlock> unreceivedTx = await allUnreceivedTransactions();
+  List<AccountBlock> refunds = [];
+
   if (unreceivedTx.isNotEmpty) {
     for (AccountBlock block in unreceivedTx) {
       BigInt amount = block.amount;
       TokenStandard tokenStandard = block.tokenStandard;
 
-      if (amount == BigInt.zero ||
-          tokenStandard != raffle.token.tokenStandard) {
+      if (amount == BigInt.zero) {
         await receiveTx(block.hash);
+      } else if (tokenStandard != raffle.token.tokenStandard) {
+        refunds.add(block);
       }
     }
+    if (refunds.isNotEmpty) await refundTx(refunds);
   }
 }
 
