@@ -1,0 +1,23 @@
+name: zenon_raffle
+description: Daily raffle hosted on NoM
+version: 1.0.0
+repository: https://github.com/znnrigel/zenon_raffle
+
+environment:
+  sdk: ^3.0.5
+
+dependencies:
+  intl: ^0.18.1
+  logging: ^1.2.0
+  path: ^1.8.2
+  postgresql2: ^1.0.2
+  settings_yaml: ^3.4.0
+  teledart: ^0.5.6
+  znn_sdk_dart:
+    git:
+      url: https://github.com/zenon-network/znn_sdk_dart.git
+      ref: master
+
+dev_dependencies:
+  lints: ^2.0.0
+  test: ^1.21.0

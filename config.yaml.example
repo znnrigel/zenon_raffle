@@ -1,0 +1,28 @@
+---
+database_address: '127.0.0.1'
+database_port: 5432
+database_name: ''
+database_username: ''
+database_password: ''
+
+secrets:
+  tg_bot_key: ''
+  zenon:
+    ws: ws://127.0.0.1:35998'
+    keystore: ''
+    passphrase: ''
+
+raffle:
+  address_dev: ''
+  address_pot: ''
+  airdrop_zts: ''
+  round_duration: <number of momentums>
+  bps_burn: <int>
+  bps_dev: <int>
+  bps_airdrop: <int>
+
+admins:
+  - <admin user id>
+  - <admin user id>
+
+channel: <tg channel id>
