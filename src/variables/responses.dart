@@ -88,14 +88,14 @@ String currentStatsResponse(
   String topAddress,
   String votes,
 ) =>
-    '📊 *Round #$roundNumber* 📊\n '
+    '*Round #$roundNumber*\n'
     'Time remaining: *${formatTime((endHeight - currentHeight) * momentumTime)}* (end height *$endHeight*)\n'
     'Token: ${tokenEmoji(token)}*${token.symbol}* `${token.tokenStandard}`\n'
     'Total tickets: *${totalTickets.toString()}*\n'
-    'Burn: *$burn*% | Dev: *$dev*% | Airdrop: *$airdrop*%\n'
     'Number of deposits: *$betCount*\n'
     '${topWager != BigInt.zero ? '👑 *${formatAmount(topWager, token, shorten: true)} ${token.symbol}* | `$topAddress`\n' : ''}'
-    'Votes: $votes';
+    'Votes: $votes\n'
+    'Burn: *$burn*% | Dev: *$dev*% | Airdrop: *$airdrop*%\n';
 
 String roundStatsResponse(
         Map<String, dynamic> stats, Token token, int betCount) =>

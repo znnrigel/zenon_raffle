@@ -7,15 +7,22 @@ import '../config/config.dart';
 import '../variables/global.dart';
 
 Future<void> initZenon() async {
-  await znnClient.wsClient.initialize(Config.ws, retry: false);
-  await znnClient.ledger.getFrontierMomentum().then((value) {
-    chainId = value.chainIdentifier.toInt();
-  });
-  if (znnClient.wsClient.status().name == 'running') {
-    logger.log(
-        Level.INFO, 'Connected to node: ${Config.ws} with chainId: $chainId');
-    await unlockWallet();
-    await initVars();
+  await nodeConnection();
+  await unlockWallet();
+  await initVars();
+}
+
+Future<void> nodeConnection() async {
+  while (znnClient.wsClient.status().name != 'running') {
+    logger.log(Level.INFO, 'znnClient is not connected to: ${Config.ws}');
+    await znnClient.wsClient.initialize(Config.ws);
+    await znnClient.ledger.getFrontierMomentum().then((value) {
+      chainId = value.chainIdentifier.toInt();
+    });
+    if (znnClient.wsClient.status().name == 'running') {
+      logger.log(
+          Level.INFO, 'Connected to node: ${Config.ws} with chainId: $chainId');
+    }
   }
 }
 

@@ -18,7 +18,7 @@ void main(List<String> args) async {
   try {
     initLogger();
     //Logger.root.level = Level.INFO;
-    Logger.root.level = Level.FINE;
+    Logger.root.level = Level.FINER;
 
     Config.load();
     db = DatabaseService();
@@ -48,6 +48,7 @@ Future<void> manageRound() async {
         if (raffle.inProgress) {
           logger.log(Level.FINEST, 'Raffle in progress');
           await Future.delayed(const Duration(seconds: 30));
+          await nodeConnection();
           await antiDos();
         } else {
           await newRound(Config.roundDuration, tokens[nextRoundToken()]!);
@@ -58,7 +59,8 @@ Future<void> manageRound() async {
     } else {
       // start the first round
       initialRoundStart = false;
-      await newRound(Config.roundDuration, tokens[ppZts]);
+      await newRound(Config.roundDuration,
+          tokens[([znnZts, qsrZts, ppZts]..shuffle()).first]);
     }
   }
 
