@@ -28,6 +28,9 @@ class TelegramPlatform {
   // reduce query delay and processing overhead while mitigating db dos
   Map<String, dynamic> statsCache = {};
 
+  List<StreamSubscription> streams = [];
+  bool isResetting = false;
+
   Future<void> initiate() async {
     logger.log(Level.INFO, '[Zenon Raffle] Initiating Telegram platform...');
 
@@ -37,66 +40,61 @@ class TelegramPlatform {
     teledart.start();
     await responseFloodMitigation();
 
-    teledart.onCommand('start').listen((msg) async {
-      msg.chat.type == 'private' ? handleMessages('start', msg) : null;
+    streams.add(teledart.onCommand('start').listen((msg) async {
+      msg.chat.type == 'private' ? await handleMessages('start', msg) : null;
       return;
-    });
+    }));
 
-    teledart.onCommand('admin').listen((msg) async {
+    streams.add(teledart.onCommand('admin').listen((msg) async {
       if (msg.chat.type == 'private') {
         for (int adminId in Config.admins) {
           if (msg.from?.id == adminId) {
-            adminFunctions(msg);
+            await adminFunctions(msg);
           }
         }
       }
       return;
-    });
+    }));
 
-    teledart.onCommand('info').listen((msg) async {
-      handleMessages('info', msg);
+    streams.add(teledart.onCommand('info').listen((msg) async {
+      await handleMessages('info', msg);
       return;
-    });
+    }));
 
-    teledart.onCommand('channel').listen((msg) async {
-      handleMessages('channel', msg);
+    streams.add(teledart.onCommand('channel').listen((msg) async {
+      await handleMessages('channel', msg);
       return;
-    });
+    }));
 
-    teledart.onCommand('vote').listen((msg) async {
-      handleMessages('vote', msg);
+    streams.add(teledart.onCommand('vote').listen((msg) async {
+      await handleMessages('vote', msg);
       return;
-    });
+    }));
 
-    teledart.onCommand('current').listen((msg) async {
-      handleMessages('current', msg);
+    streams.add(teledart.onCommand('current').listen((msg) async {
+      await handleMessages('current', msg);
       return;
-    });
+    }));
 
-    teledart.onCommand('tickets').listen((msg) async {
-      handleMessages('tickets', msg);
+    streams.add(teledart.onCommand('tickets').listen((msg) async {
+      await handleMessages('tickets', msg);
       return;
-    });
+    }));
 
-    teledart.onCommand('leaderboard').listen((msg) async {
-      handleMessages('leaderboard', msg);
+    streams.add(teledart.onCommand('leaderboard').listen((msg) async {
+      await handleMessages('leaderboard', msg);
       return;
-    });
+    }));
 
-    teledart.onCommand('round').listen((msg) async {
-      handleMessages('round', msg);
+    streams.add(teledart.onCommand('round').listen((msg) async {
+      await handleMessages('round', msg);
       return;
-    });
+    }));
 
-    teledart.onCommand('stats').listen((msg) async {
-      handleMessages('stats', msg);
+    streams.add(teledart.onCommand('stats').listen((msg) async {
+      await handleMessages('stats', msg);
       return;
-    });
-
-    teledart.onMention().listen((msg) async {
-      // for debugging
-      logger.log(Level.FINER, 'onMention: ${msg.toJson()}');
-    });
+    }));
 
     // potential commands
     // /register: register address (to display telegram handle in leaderboard)
@@ -104,7 +102,7 @@ class TelegramPlatform {
     logger.log(Level.INFO, '[Zenon Raffle] Telegram platform initiated!');
   }
 
-  void handleMessages(String command, TeleDartMessage msg) async {
+  Future handleMessages(String command, TeleDartMessage msg) async {
     int telegramId = msg.from!.id;
 
     if (!responsesEnabled) {
@@ -116,7 +114,7 @@ class TelegramPlatform {
     }
 
     if (isFlood(telegramId)) {
-      teledart.sendMessage(
+      await teledart.sendMessage(
           telegramId,
           commandTimeout(cooldownDuration -
               (DateTime.now().millisecondsSinceEpoch -
@@ -128,13 +126,13 @@ class TelegramPlatform {
 
     switch (command) {
       case 'start':
-        replyToCommand(msg, welcomeMessage);
+        await replyToCommand(msg, welcomeMessage);
         break;
       case 'info':
-        replyToCommand(msg, infoMenu);
+        await replyToCommand(msg, infoMenu);
         break;
       case 'channel':
-        replyToCommand(msg, raffleChannel);
+        await replyToCommand(msg, raffleChannel);
         break;
       case 'vote':
         await voteForZts(msg);
@@ -155,7 +153,7 @@ class TelegramPlatform {
         await getRaffleStats(msg);
         break;
       default:
-        replyToCommand(msg, commandError);
+        await replyToCommand(msg, commandError);
         break;
     }
   }
@@ -171,7 +169,7 @@ class TelegramPlatform {
     List<String> message = msg.text!.split(' ');
 
     if (message.length != 1) {
-      replyToCommand(msg, ticketsInfo);
+      await replyToCommand(msg, ticketsInfo);
       return;
     }
 
@@ -205,7 +203,7 @@ class TelegramPlatform {
         votesResponse = votesResponse.substring(0, votesResponse.length - 2);
       }
 
-      replyToCommand(
+      await replyToCommand(
           msg,
           currentStatsResponse(
             raffle.roundNumber,
@@ -222,7 +220,7 @@ class TelegramPlatform {
             votesResponse,
           ));
     } catch (e) {
-      replyToCommand(msg, commandErrorLowSeverity);
+      await replyToCommand(msg, commandErrorLowSeverity);
       return;
     }
   }
@@ -231,12 +229,12 @@ class TelegramPlatform {
     List<String> message = msg.text!.split(' ');
 
     if (message.length == 1) {
-      replyToCommand(msg, ticketsInfo);
+      await replyToCommand(msg, ticketsInfo);
       return;
     }
 
     if (!isAddress(message.last)) {
-      replyToCommand(msg, commandNotValid);
+      await replyToCommand(msg, commandNotValid);
       return;
     }
     try {
@@ -246,7 +244,8 @@ class TelegramPlatform {
       Address address = Address.parse(message.last);
 
       if (bets.isEmpty) {
-        replyToCommand(msg, 'There aren\'t any deposits in the current round.');
+        await replyToCommand(
+            msg, 'There aren\'t any deposits in the current round.');
         return;
       } else {
         // keep track of which tickets are being counted
@@ -256,7 +255,7 @@ class TelegramPlatform {
         SplayTreeMap sortedBets = sortCurrentPlayersByAmount(bets);
 
         if (!sortedBets.containsKey(address.toString())) {
-          replyToCommand(
+          await replyToCommand(
               msg, 'This address is not participating in the current round.');
           return;
         }
@@ -291,11 +290,11 @@ class TelegramPlatform {
         response +=
             'Pot total = *${formatAmount(raffleTickets, raffle.token, shorten: false)}*\n';
 
-        replyToCommand(msg, response);
+        await replyToCommand(msg, response);
         return;
       }
     } catch (e) {
-      replyToCommand(msg, commandErrorLowSeverity);
+      await replyToCommand(msg, commandErrorLowSeverity);
       return;
     }
   }
@@ -409,7 +408,7 @@ class TelegramPlatform {
             largestBets,
           ));
     } catch (e) {
-      replyToCommand(msg, commandErrorLowSeverity);
+      await replyToCommand(msg, commandErrorLowSeverity);
     }
   }
 
@@ -417,7 +416,7 @@ class TelegramPlatform {
     List<String> message = msg.text!.split(' ');
 
     if (!isAddress(message.last)) {
-      replyToCommand(msg, commandNotValid);
+      await replyToCommand(msg, commandNotValid);
       return;
     }
 
@@ -452,7 +451,7 @@ class TelegramPlatform {
         }
       }
 
-      replyToCommand(
+      await replyToCommand(
           msg,
           await playerStatsResponse(
             address,
@@ -466,7 +465,7 @@ class TelegramPlatform {
             wonTotal,
           ));
     } catch (e) {
-      replyToCommand(msg, commandErrorLowSeverity);
+      await replyToCommand(msg, commandErrorLowSeverity);
       return;
     }
     return;
@@ -476,7 +475,7 @@ class TelegramPlatform {
     List<String> message = msg.text!.split(' ');
 
     if (message.length != 2) {
-      replyToCommand(msg, roundStatsInfo);
+      await replyToCommand(msg, roundStatsInfo);
       return;
     }
 
@@ -487,13 +486,13 @@ class TelegramPlatform {
       if (roundStats.isNotEmpty) {
         Token t = (await znnClient.embedded.token
             .getByZts(roundStats['tokenStandard']))!;
-        replyToCommand(msg, roundStatsResponse(roundStats, t, betCount));
+        await replyToCommand(msg, roundStatsResponse(roundStats, t, betCount));
       } else {
-        replyToCommand(msg, 'Could not retrieve that round information');
+        await replyToCommand(msg, 'Could not retrieve that round information');
       }
       return;
     } catch (e) {
-      replyToCommand(msg, roundStatsInfo);
+      await replyToCommand(msg, roundStatsInfo);
       return;
     }
   }
@@ -502,7 +501,7 @@ class TelegramPlatform {
     List<String> message = msg.text!.toLowerCase().split(' ');
 
     if (message.length != 2) {
-      replyToCommand(msg, leaderboardInfo);
+      await replyToCommand(msg, leaderboardInfo);
       return;
     }
 
@@ -516,22 +515,22 @@ class TelegramPlatform {
       case 'bets':
         stats = await getLeaderboardStats('largestBet');
       default:
-        replyToCommand(msg, leaderboardInfo);
+        await replyToCommand(msg, leaderboardInfo);
         return;
     }
-    replyToCommand(msg, await leaderboardMessage(stats, message[1]));
+    await replyToCommand(msg, await leaderboardMessage(stats, message[1]));
   }
 
   Future<void> voteForZts(TeleDartMessage msg) async {
     List<String> message = msg.text!.toLowerCase().split(' ');
 
     if (message.length == 1) {
-      replyToCommand(msg, voteInfo);
+      await replyToCommand(msg, voteInfo);
       return;
     }
 
     if (msg.from?.id == null) {
-      replyToCommand(
+      await replyToCommand(
           msg,
           escapeMarkdownChars(
               'Cannot register your vote: invalid Telegram ID'));
@@ -548,7 +547,7 @@ class TelegramPlatform {
       case 'pp':
         raffle.votes[msg.from!.id] = ppZts;
       default:
-        replyToCommand(
+        await replyToCommand(
             msg,
             escapeMarkdownChars(
                 'Cannot register your vote: invalid token symbol'));
@@ -556,13 +555,13 @@ class TelegramPlatform {
     }
 
     if (lastZtsVote != '') {
-      replyToCommand(
+      await replyToCommand(
           msg,
           escapeMarkdownChars(
               'Updated your vote to `${message[1].toUpperCase()}`'));
       return;
     } else {
-      replyToCommand(
+      await replyToCommand(
           msg,
           escapeMarkdownChars(
               'Registered your vote for `${message[1].toUpperCase()}`'));
@@ -574,7 +573,7 @@ class TelegramPlatform {
     List<String> message = msg.text!.split(' ');
 
     if (message.length == 1) {
-      replyToCommand(msg, adminInfo);
+      await replyToCommand(msg, adminInfo);
       return;
     }
 
@@ -582,13 +581,13 @@ class TelegramPlatform {
         'adminFunctions() called by ${msg.from!.username}: $message');
 
     if (message[1] == 'refund') {
-      replyToCommand(msg, 'Initiating emergencyRefund()');
+      await replyToCommand(msg, 'Initiating emergencyRefund()');
       await raffle.emergencyRefund();
       return;
     }
 
     if (message[1] == 'stop') {
-      replyToCommand(msg, 'Initiating emergencyStop()');
+      await replyToCommand(msg, 'Initiating emergencyStop()');
       await raffle.emergencyStop();
       return;
     }
@@ -598,58 +597,58 @@ class TelegramPlatform {
       try {
         amount = int.parse(message[3]);
       } catch (e) {
-        replyToCommand(msg, adminInfo);
+        await replyToCommand(msg, adminInfo);
         return;
       }
 
       switch (message[2]) {
         case 'airdrop':
           if (amount >= 0 && amount <= 2500) {
-            broadcastToChannel(adminUpdatedValueAlert(
+            await broadcastToChannel(adminUpdatedValueAlert(
                 'airdrop percentage',
                 '${(Config.bpsAirdrop / 100).toDouble().toStringAsFixed(2)}%',
                 '${(amount / 100).toDouble().toStringAsFixed(2)}%'));
             Config.bpsAirdrop = amount;
           } else {
-            replyToCommand(msg, 'Should not airdrop more than 25%');
+            await replyToCommand(msg, 'Should not airdrop more than 25%');
             return;
           }
         case 'burn':
           if (amount >= 0 && amount <= 1000) {
-            broadcastToChannel(adminUpdatedValueAlert(
+            await broadcastToChannel(adminUpdatedValueAlert(
                 'burn/donation percentage',
                 '${(Config.bpsBurn / 100).toDouble().toStringAsFixed(2)}%',
                 '${(amount / 100).toDouble().toStringAsFixed(2)}%'));
             Config.bpsBurn = amount;
           } else {
-            replyToCommand(msg, 'Should not burn more than 10%');
+            await replyToCommand(msg, 'Should not burn more than 10%');
             return;
           }
         case 'dev':
           if (amount >= 0 && amount <= 1000) {
-            broadcastToChannel(adminUpdatedValueAlert(
+            await broadcastToChannel(adminUpdatedValueAlert(
                 'dev percentage',
                 '${(Config.bpsDev / 100).toStringAsFixed(2)}%',
                 '${(amount / 100).toDouble().toStringAsFixed(2)}%'));
             Config.bpsDev = amount;
           } else {
-            replyToCommand(msg, 'Dev should not receive more than 10%');
+            await replyToCommand(msg, 'Dev should not receive more than 10%');
             return;
           }
         case 'duration':
           if (amount >= 30) {
-            broadcastToChannel(adminUpdatedValueAlert(
+            await broadcastToChannel(adminUpdatedValueAlert(
                 'round duration (momentums)',
                 '${Config.roundDuration}',
                 '$amount'));
             Config.roundDuration = amount;
           } else {
-            replyToCommand(
+            await replyToCommand(
                 msg, 'Round duration should be at least 30 momentums');
             return;
           }
         default:
-          replyToCommand(msg, adminInfo);
+          await replyToCommand(msg, adminInfo);
           return;
       }
     }
@@ -674,10 +673,72 @@ class TelegramPlatform {
   Future<Timer> responseFloodMitigation() async =>
       Timer(Duration(seconds: 5), () async => responsesEnabled = true);
 
-  broadcastToChannel(String message) => teledart.sendMessage(
-      Config.channel, escapeMarkdownChars(message.toString()),
-      parseMode: 'MarkdownV2');
+  // Random Telegram response failure may occur
+  // Retry several times and reset the Telegram connection if
+  // multiple attempts fail
+  Future broadcastToChannel(
+    String message, [
+    int cooldownMultiplier = 1,
+  ]) async {
+    try {
+      await teledart.sendMessage(
+          Config.channel, escapeMarkdownChars(message.toString()),
+          parseMode: 'MarkdownV2');
+    } catch (e) {
+      logger.log(Level.SEVERE, 'broadcastToChannel() failed: $e');
+      if (cooldownMultiplier % 6 == 0) {
+        await resetTelegram();
+        cooldownMultiplier = 1;
+      }
+      await Future.delayed(Duration(seconds: 15 * cooldownMultiplier));
+      await broadcastToChannel(message, ++cooldownMultiplier);
+    }
+  }
 
-  replyToCommand(TeleDartMessage msg, String response) =>
-      msg.reply(escapeMarkdownChars(response), parseMode: 'MarkdownV2');
+  Future replyToCommand(
+    TeleDartMessage msg,
+    String response, [
+    int cooldownMultiplier = 1,
+  ]) async {
+    try {
+      await msg.reply(escapeMarkdownChars(response), parseMode: 'MarkdownV2');
+    } catch (e) {
+      logger.log(Level.SEVERE, 'replyToCommand() failed: $e');
+      if (cooldownMultiplier % 6 == 0) {
+        await resetTelegram();
+        cooldownMultiplier = 1;
+      }
+      await Future.delayed(Duration(seconds: 15 * cooldownMultiplier));
+      await replyToCommand(msg, response, ++cooldownMultiplier);
+    }
+  }
+
+  Future resetTelegram() async {
+    if (!isResetting) {
+      isResetting = true;
+      logger.log(Level.WARNING,
+          'resetTelegram(): waiting 10 minutes to reset the tg connection ...');
+      teledart.stop();
+
+      streams.forEach((element) async {
+        await element.cancel();
+      });
+
+      await Future.delayed(const Duration(seconds: 605));
+
+      try {
+        await teledart.close();
+      } catch (e) {
+        logger.log(Level.SEVERE, 'resetTelegram(): teledart.close(): $e');
+      }
+
+      try {
+        streams = [];
+        isResetting = false;
+        await initiate();
+      } catch (e) {
+        logger.log(Level.SEVERE, 'resetTelegram(): initiate(): $e');
+      }
+    }
+  }
 }

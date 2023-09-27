@@ -8,7 +8,7 @@ database_password: ''
 secrets:
   tg_bot_key: ''
   zenon:
-    ws: ws://127.0.0.1:35998'
+    ws: 'ws://127.0.0.1:35998'
     keystore: ''
     passphrase: ''
 

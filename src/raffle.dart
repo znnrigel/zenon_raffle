@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
 
-import 'package:logging/logging.dart';
 import 'package:znn_sdk_dart/znn_sdk_dart.dart' hide logger;
 
 import '../bin/zenonrafflebot.dart';
@@ -71,8 +70,9 @@ class Raffle {
   Future<void> start() async {
     try {
       durationSeconds = (endHeight - startHeight) * momentumTime;
+      await telegram
+          .broadcastToChannel(roundStart(startHeight, endHeight, token));
       timer = await startTimer();
-      telegram.broadcastToChannel(roundStart(startHeight, endHeight, token));
     } catch (e, stackTrace) {
       logger.log(Level.SEVERE, 'Could not start round', e, stackTrace);
     }
@@ -82,14 +82,14 @@ class Raffle {
     while (await frontierMomentum() < endHeight) {
       await Future.delayed(const Duration(seconds: 5));
     }
-    telegram.broadcastToChannel('Round has ended');
+    await telegram.broadcastToChannel('Round has ended');
 
     logger.log(Level.INFO, 'End of round #$roundNumber');
 
     List<AccountBlock> unreceivedTx = await allUnreceivedTransactions();
     if (unreceivedTx.isEmpty) {
       logger.log(Level.INFO, roundOverNoWinner);
-      telegram.broadcastToChannel(roundOverNoWinner);
+      await telegram.broadcastToChannel(roundOverNoWinner);
       inProgress = false;
       return;
     }
@@ -111,15 +111,15 @@ class Raffle {
     }
 
     if (pot == BigInt.zero) {
-      telegram.broadcastToChannel(roundOverNoWinner);
+      await telegram.broadcastToChannel(roundOverNoWinner);
       inProgress = false;
       return;
     }
 
     // this should never happen
     if (pot > BigInt.from(double.maxFinite)) {
-      telegram.broadcastToChannel(raffleSuspended);
-      telegram.broadcastToChannel('Pot size: ${pot.toString()}');
+      await telegram.broadcastToChannel(raffleSuspended);
+      await telegram.broadcastToChannel('Pot size: ${pot.toString()}');
       logger.log(Level.SEVERE, raffleSuspended);
       logger.log(Level.INFO, 'Pot size: ${pot.toString()}');
       inProgress = false;
@@ -156,7 +156,7 @@ class Raffle {
     Address winner = findWinner(results['winningTicket']!, bets);
 
     if (winner == Config.addressPot) {
-      telegram.broadcastToChannel(roundOverNoWinner);
+      await telegram.broadcastToChannel(roundOverNoWinner);
       await refundTx(await allUnreceivedTransactions());
       inProgress = false;
       return;
@@ -170,16 +170,16 @@ class Raffle {
 
     bool distributionResult = await distributePot(winner, results);
     if (!distributionResult) {
-      telegram.broadcastToChannel(roundOver(
+      await telegram.broadcastToChannel(roundOver(
           pot, winner, results['winningTicket']!, token, roundNumber));
-      telegram.broadcastToChannel(raffleSuspended);
+      await telegram.broadcastToChannel(raffleSuspended);
       inProgress = false;
       logger.log(Level.INFO, 'Round #$roundNumber finished');
     }
 
     bonus > BigInt.zero ? await updateRoundsBonus(roundNumber, bonus) : null;
 
-    telegram.broadcastToChannel(
+    await telegram.broadcastToChannel(
         roundOver(pot, winner, results['winningTicket']!, token, roundNumber));
     inProgress = false;
     logger.log(Level.INFO, 'Round #$roundNumber finished');
@@ -256,7 +256,7 @@ class Raffle {
     logger.log(Level.WARNING, 'Admin called emergencyRefund()');
     await refundTx(await allUnreceivedTransactions());
     inProgress = false;
-    telegram.broadcastToChannel(emergencyRefundMessage);
+    await telegram.broadcastToChannel(emergencyRefundMessage);
   }
 
   Future<void> emergencyStop() async {

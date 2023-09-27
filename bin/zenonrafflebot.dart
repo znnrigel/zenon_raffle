@@ -28,7 +28,7 @@ void main(List<String> args) async {
     await initIndexer();
 
     telegram = TelegramPlatform();
-    await telegram.initiate();
+    await initTelegram();
 
     await manageRound();
   } catch (e, stackTrace) {
@@ -74,4 +74,21 @@ Future<void> newRound(int duration, Token? token) async {
     token: token!,
   );
   await raffle.init();
+}
+
+Future<void> initTelegram() async {
+  await runZonedGuarded(() async {
+    await telegram.initiate();
+  }, (error, stacktrace) async {
+    // this should never be reached
+
+    // Note: runZonedGuarded doesn't seem to re-initialize correctly
+    // it will call telegram.initiate() once more
+    // if that fails, the script terminates
+    logger.log(
+        Level.WARNING, 'initTelegram(): Telegram error: $error\n$stacktrace');
+    await Future.delayed(const Duration(seconds: 30));
+    logger.log(Level.INFO, 'runZonedGuarded -> 30 sec delay -> initTelegram()');
+    await initTelegram();
+  });
 }
