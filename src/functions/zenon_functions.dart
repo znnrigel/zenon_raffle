@@ -137,15 +137,17 @@ Future<bool> distributePot(Address winner, Map<String, dynamic> results) async {
         'Airdrop: ${AmountUtils.addDecimals(results['airdropAmount']!, raffle.token.decimals)} ${raffle.token.symbol} (Total: ${AmountUtils.addDecimals(results['airdropTotal']!, raffle.token.decimals)})');
     for (String recipient in snapshotVars['holders']) {
       // try/catch and while used to mitigate "JSON-RPC error -32000: account-block previous block is missing"
-      // should not cause an infinite loop
       bool complete = false;
-      while (!complete) {
+      int tryCount = 0;
+      while (!complete && tryCount < 3) {
         try {
           await sendTx(AccountBlockTemplate.send(Address.parse(recipient),
               raffle.token.tokenStandard, results['airdropAmount']!));
           complete = true;
         } catch (e) {
-          logger.log(Level.WARNING, 'distributePot(): airdrop');
+          tryCount += 1;
+          logger.log(
+              Level.WARNING, 'distributePot(): airdrop failed on $recipient');
         }
       }
     }
