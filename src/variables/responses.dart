@@ -89,10 +89,10 @@ String currentStatsResponse(
   String votes,
 ) =>
     '*Round #$roundNumber*\n'
-    'Time remaining: *${formatTime((endHeight - currentHeight) * momentumTime)}* (end height *$endHeight*)\n'
-    'Token: ${tokenEmoji(token)}*${token.symbol}* `${token.tokenStandard}`\n'
+    'Time remaining: *${formatTime((endHeight - currentHeight) * momentumTime)}*\n'
+    'Token: ${tokenEmoji(token)} *${token.symbol}*`\n'
     'Total tickets: *${totalTickets.toString()}*\n'
-    'Number of deposits: *$betCount*\n'
+    'Number of deposits: *$betCount*\n\n'
     '${topWager != BigInt.zero ? '👑 *${formatAmount(topWager, token, shorten: true)} ${token.symbol}* | `$topAddress`\n' : ''}'
     'Votes: $votes\n'
     'Burn: *$burn*% | Dev: *$dev*% | Airdrop: *$airdrop*%\n';
