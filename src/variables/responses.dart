@@ -90,7 +90,7 @@ String currentStatsResponse(
 ) =>
     '*Round #$roundNumber*\n'
     'Time remaining: *${formatTime((endHeight - currentHeight) * momentumTime)}*\n'
-    'Token: ${tokenEmoji(token)} *${token.symbol}*`\n'
+    'Token: ${tokenEmoji(token)} *${token.symbol}*\n'
     'Total tickets: *${totalTickets.toString()}*\n'
     'Number of deposits: *$betCount*\n\n'
     '${topWager != BigInt.zero ? '👑 *${formatAmount(topWager, token, shorten: true)} ${token.symbol}* | `$topAddress`\n' : ''}'
