@@ -31,7 +31,7 @@ class TelegramPlatform {
   List<StreamSubscription> streams = [];
   bool isResetting = false;
 
-  Future<void> initiate() async {
+  initiate() async {
     logger.log(Level.INFO, '[Zenon Raffle] Initiating Telegram platform...');
 
     final username = (await Telegram(Config.tgBotKey).getMe()).username;
@@ -102,7 +102,7 @@ class TelegramPlatform {
     logger.log(Level.INFO, '[Zenon Raffle] Telegram platform initiated!');
   }
 
-  Future handleMessages(String command, TeleDartMessage msg) async {
+  handleMessages(String command, TeleDartMessage msg) async {
     int telegramId = msg.from!.id;
 
     if (!responsesEnabled) {
@@ -165,7 +165,7 @@ class TelegramPlatform {
     return timeDifference < cooldownDuration;
   }
 
-  Future<void> getCurrentStats(TeleDartMessage msg) async {
+  getCurrentStats(TeleDartMessage msg) async {
     List<String> message = msg.text!.split(' ');
 
     if (message.length != 1) {
@@ -225,7 +225,7 @@ class TelegramPlatform {
     }
   }
 
-  Future<void> getTickets(TeleDartMessage msg) async {
+  getTickets(TeleDartMessage msg) async {
     List<String> message = msg.text!.split(' ');
 
     if (message.length == 1) {
@@ -299,7 +299,7 @@ class TelegramPlatform {
     }
   }
 
-  Future<void> getRaffleStats(TeleDartMessage msg) async {
+  getRaffleStats(TeleDartMessage msg) async {
     // edge case: calling /stats in between rounds
     int currentRound = 0;
     while (currentRound == 0) {
@@ -412,7 +412,7 @@ class TelegramPlatform {
     }
   }
 
-  Future<void> getPlayerStats(TeleDartMessage msg) async {
+  getPlayerStats(TeleDartMessage msg) async {
     List<String> message = msg.text!.split(' ');
 
     if (!isAddress(message.last)) {
@@ -471,7 +471,7 @@ class TelegramPlatform {
     return;
   }
 
-  Future<void> getRoundStats(TeleDartMessage msg) async {
+  getRoundStats(TeleDartMessage msg) async {
     List<String> message = msg.text!.split(' ');
 
     if (message.length != 2) {
@@ -481,12 +481,18 @@ class TelegramPlatform {
 
     try {
       int roundNumber = int.parse(message[1]);
-      Map<String, dynamic> roundStats = await selectRound(roundNumber);
-      int betCount = await getBetCountForRound(roundNumber);
+      Map<String, dynamic> roundStats = await selectRound(roundNumber, false);
       if (roundStats.isNotEmpty) {
-        Token t = (await znnClient.embedded.token
-            .getByZts(roundStats['tokenStandard']))!;
-        await replyToCommand(msg, roundStatsResponse(roundStats, t, betCount));
+        if (roundStats['winner'] == '0') {
+          await replyToCommand(msg, 'No round winner');
+        } else {
+          Token t = (await znnClient.embedded.token
+              .getByZts(roundStats['tokenStandard']))!;
+          await replyToCommand(
+              msg,
+              roundStatsResponse(
+                  roundStats, t, await getBetCountForRound(roundNumber)));
+        }
       } else {
         await replyToCommand(msg, 'Could not retrieve that round information');
       }
@@ -497,7 +503,7 @@ class TelegramPlatform {
     }
   }
 
-  Future<void> getLeaderboard(TeleDartMessage msg) async {
+  getLeaderboard(TeleDartMessage msg) async {
     List<String> message = msg.text!.toLowerCase().split(' ');
 
     if (message.length != 2) {
@@ -521,7 +527,7 @@ class TelegramPlatform {
     await replyToCommand(msg, await leaderboardMessage(stats, message[1]));
   }
 
-  Future<void> voteForZts(TeleDartMessage msg) async {
+  voteForZts(TeleDartMessage msg) async {
     List<String> message = msg.text!.toLowerCase().split(' ');
 
     if (message.length == 1) {
@@ -569,7 +575,7 @@ class TelegramPlatform {
     }
   }
 
-  Future<void> adminFunctions(TeleDartMessage msg) async {
+  adminFunctions(TeleDartMessage msg) async {
     List<String> message = msg.text!.split(' ');
 
     if (message.length == 1) {
@@ -676,7 +682,7 @@ class TelegramPlatform {
   // Random Telegram response failure may occur
   // Retry several times and reset the Telegram connection if
   // multiple attempts fail
-  Future broadcastToChannel(
+  broadcastToChannel(
     String message, [
     int cooldownMultiplier = 1,
   ]) async {
@@ -695,7 +701,7 @@ class TelegramPlatform {
     }
   }
 
-  Future replyToCommand(
+  replyToCommand(
     TeleDartMessage msg,
     String response, [
     int cooldownMultiplier = 1,
@@ -713,7 +719,7 @@ class TelegramPlatform {
     }
   }
 
-  Future resetTelegram() async {
+  resetTelegram() async {
     if (!isResetting) {
       isResetting = true;
       logger.log(Level.WARNING,

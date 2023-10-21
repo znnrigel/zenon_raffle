@@ -14,7 +14,7 @@ Docs: https://zenon-raffle.gitbook.io/docs/
 ----
 
 ### To get started
-#### Preconditions
+#### Prerequisites
 You will need the following:
 1. Postgres database
 2. Telegram bot and channel

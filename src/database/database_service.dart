@@ -45,7 +45,7 @@ class DatabaseService {
     _conn.close();
   }
 
-  Future<void> initTables() async {
+  initTables() async {
     try {
       await _conn.runInTransaction(() async {
         final createPlayersTable = '''
@@ -67,7 +67,7 @@ class DatabaseService {
           seed text NOT NULL,
           pot text NOT NULL,
           winningTicket text NOT NULL,
-          winner text NOT NULL REFERENCES players(address),
+          winner text NOT NULL,
           winnerAmount text NOT NULL,
           winnerBonus text NOT NULL,
           burnAmount text NOT NULL,
@@ -77,7 +77,8 @@ class DatabaseService {
           bpsBurn int NOT NULL,
           bpsDev int NOT NULL,
           bpsAirdrop int NOT NULL,
-          airdropZts text NOT NULL
+          airdropZts text NOT NULL,
+          active boolean NOT NULL
         );
         ''';
 
@@ -124,7 +125,7 @@ class DatabaseService {
     }
   }
 
-  Future<void> resetTables() async {
+  resetTables() async {
     try {
       await _conn.runInTransaction(() async {
         await _conn.query('DROP TABLE ${Table.ppStats};').toList();

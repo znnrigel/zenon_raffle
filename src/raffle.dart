@@ -16,12 +16,12 @@ class Raffle {
   BigInt pot = BigInt.zero;
   bool inProgress = true;
 
-  // {int telegramId: tokenStandard}
-  Map<int, TokenStandard> votes = {};
+  Map<int, TokenStandard> votes = {}; // {int telegramId: tokenStandard}
   int voteThreshold = 1;
 
   int duration; // momentums
   Token token;
+  bool isNewRound;
 
   late int startHeight; // momentum height when we start
   late int endHeight;
@@ -35,50 +35,81 @@ class Raffle {
   Raffle({
     required this.duration,
     required this.token,
+    required this.isNewRound,
   });
 
-  Future<void> init() async {
+  init() async {
     try {
-      // Ensure no pending transactions are in the queue
-      while ((await unreceivedTransactions()).list!.isNotEmpty) {
-        List<AccountBlock> unreceivedTransactions =
-            await allUnreceivedTransactions();
-        logger.log(Level.INFO,
-            'Clearing ${Config.addressPot}\'s ${unreceivedTransactions.length} unreceived transactions...');
-        await refundTx(unreceivedTransactions);
+      Map roundStatus = await getCurrentRoundStatus();
+      int latestRoundNumber = 0;
+      if (roundStatus.isNotEmpty) {
+        latestRoundNumber = (await getCurrentRoundStatus())['roundNumber'];
+      }
+      int currentHeight = await frontierMomentum();
+
+      if (isNewRound) {
+        // Ensure no pending transactions are in the queue
+        while ((await unreceivedTransactions()).list!.isNotEmpty) {
+          List<AccountBlock> unreceivedTransactions =
+              await allUnreceivedTransactions();
+          logger.log(Level.INFO,
+              'Clearing ${Config.addressPot}\'s ${unreceivedTransactions.length} unreceived transactions...');
+          await refundTx(unreceivedTransactions);
+        }
+
+        // Set vars
+        startHeight = currentHeight;
+        endHeight = startHeight + duration;
+        roundNumber = latestRoundNumber + 1;
+        durationSeconds = (endHeight - startHeight) * momentumTime;
+
+        logger.log(Level.INFO, 'Starting round #$roundNumber');
+      } else {
+        Map<String, dynamic> latestRound =
+            await selectRound(latestRoundNumber, true);
+
+        startHeight = latestRound['startHeight'];
+        endHeight = latestRound['endHeight'];
+        roundNumber = latestRoundNumber;
+        token = tokens[
+            TokenStandard.parse(latestRound['tokenStandard'].toString())]!;
+        durationSeconds = (endHeight - currentHeight) * momentumTime;
+
+        logger.log(Level.INFO, 'Resuming round #$roundNumber');
       }
 
-      // Set vars
-      startHeight = await frontierMomentum();
-      endHeight = startHeight + duration;
-      roundNumber = await getRoundNumber() + 1;
-
-      logger.log(Level.INFO, 'Starting round #$roundNumber');
       logger.log(Level.INFO,
           'Momentums: $startHeight - $endHeight / Duration: $duration');
       logger.log(Level.INFO, 'Token: ${token.tokenStandard}');
       logger.log(Level.INFO,
           'Split: ${Config.bpsBurn} bps burn / ${Config.bpsDev} bps dev / ${Config.bpsAirdrop} bps airdrop');
 
-      await start();
+      if (endHeight < currentHeight) {
+        await end();
+      } else {
+        await start();
+      }
     } catch (e, stackTrace) {
       logger.log(Level.SEVERE, 'Could not init round', e, stackTrace);
       return;
     }
   }
 
-  Future<void> start() async {
+  start() async {
     try {
-      durationSeconds = (endHeight - startHeight) * momentumTime;
-      await telegram
-          .broadcastToChannel(roundStart(startHeight, endHeight, token));
+      if (isNewRound) {
+        await insertNewRound(roundNumber, startHeight, endHeight,
+            token.tokenStandard.toString());
+        await telegram
+            .broadcastToChannel(roundStart(startHeight, endHeight, token));
+      }
       timer = await startTimer();
     } catch (e, stackTrace) {
       logger.log(Level.SEVERE, 'Could not start round', e, stackTrace);
     }
   }
 
-  Future<void> end() async {
+  end() async {
     while (await frontierMomentum() < endHeight) {
       await Future.delayed(const Duration(seconds: 5));
     }
@@ -88,9 +119,7 @@ class Raffle {
 
     List<AccountBlock> unreceivedTx = await allUnreceivedTransactions();
     if (unreceivedTx.isEmpty) {
-      logger.log(Level.INFO, roundOverNoWinner);
-      await telegram.broadcastToChannel(roundOverNoWinner);
-      inProgress = false;
+      await endNoWinner();
       return;
     }
 
@@ -105,14 +134,17 @@ class Raffle {
       await refundTx(refunds);
     }
 
-    if (bets.isNotEmpty) {
+    if (bets.length == 1) {
+      await refundTx(bets);
+      await endNoWinner();
+      return;
+    } else if (bets.isNotEmpty) {
       await receiveAll(bets);
       pot = await potSum(bets);
     }
 
     if (pot == BigInt.zero) {
-      await telegram.broadcastToChannel(roundOverNoWinner);
-      inProgress = false;
+      await endNoWinner();
       return;
     }
 
@@ -130,7 +162,14 @@ class Raffle {
     await settleBalances(bets);
   }
 
-  Future<void> settleBalances(List<AccountBlock> bets) async {
+  endNoWinner() async {
+    logger.log(Level.INFO, roundOverNoWinner);
+    await telegram.broadcastToChannel(roundOverNoWinner);
+    await updateRoundNoWinner(roundNumber);
+    inProgress = false;
+  }
+
+  settleBalances(List<AccountBlock> bets) async {
     logger.log(Level.INFO, 'Settling balances for round #$roundNumber');
 
     // Update the list of current airdrop participants
@@ -158,26 +197,33 @@ class Raffle {
     if (winner == Config.addressPot) {
       await telegram.broadcastToChannel(roundOverNoWinner);
       await refundTx(await allUnreceivedTransactions());
+      await updateRoundNoWinner(roundNumber);
       inProgress = false;
       return;
     }
 
     // update db
     await updatePlayers(bets, winner);
-    await updateRounds(winner, results);
+    await updateRound(roundNumber, pot, winner, results);
     await updateBets(bets);
     await updateZtsStats(bets, winner, results);
 
     bool distributionResult = await distributePot(winner, results);
     if (!distributionResult) {
       await telegram.broadcastToChannel(roundOver(
-          pot, winner, results['winningTicket']!, token, roundNumber));
+        pot,
+        winner,
+        results['winningTicket']!,
+        token,
+        roundNumber,
+      ));
       await telegram.broadcastToChannel(raffleSuspended);
       inProgress = false;
-      logger.log(Level.INFO, 'Round #$roundNumber finished');
+      logger.log(
+          Level.INFO, 'Round #$roundNumber finished, raffle is suspended');
     }
 
-    bonus > BigInt.zero ? await updateRoundsBonus(roundNumber, bonus) : null;
+    bonus > BigInt.zero ? await updateRoundBonus(roundNumber, bonus) : null;
 
     await telegram.broadcastToChannel(
         roundOver(pot, winner, results['winningTicket']!, token, roundNumber));
@@ -252,7 +298,7 @@ class Raffle {
     return results;
   }
 
-  Future<void> emergencyRefund() async {
+  emergencyRefund() async {
     logger.log(Level.WARNING, 'Admin called emergencyRefund()');
     await refundTx(await allUnreceivedTransactions());
     inProgress = false;

@@ -4,7 +4,7 @@ import '../config/config.dart';
 import '../variables/global.dart';
 import 'database_service.dart';
 
-Future<void> updatePlayers(List<AccountBlock> bets, Address winner) async {
+updatePlayers(List<AccountBlock> bets, Address winner) async {
   // format the input to facilitate table updates
   List<Map<String, dynamic>> players = [];
   for (AccountBlock b in bets) {
@@ -44,84 +44,78 @@ Future<void> updatePlayers(List<AccountBlock> bets, Address winner) async {
   await lockTableAndInsert(Table.players, playersQueries);
 }
 
-Future<void> updateRounds(
-  Address winner,
-  Map<String, dynamic> results,
+insertNewRound(
+  int roundNumber,
+  int startHeight,
+  int endHeight,
+  String tokenStandard,
 ) async {
-  String insertQuery(
-    int startHeight,
-    int endHeight,
-    String tokenStandard,
-    String pot,
-    String winner,
-    String hash,
-    String seed,
-    String winningTicket,
-    int bpsBurn,
-    int bpsDev,
-    int bpsAirdrop,
-    String airdropZts,
-    String winnerAmount,
-    String winnerBonus,
-    String burnAmount,
-    String devAmount,
-    String airdropAmount,
-    int airdropRecipients,
-  ) =>
-      '''
+  await lockTableAndInsert(Table.rounds, [
+    '''
       INSERT INTO ${Table.rounds} (
-        startHeight, endHeight, tokenStandard, pot, winner, hash, seed, 
-        winningTicket, bpsBurn, bpsDev, bpsAirdrop, airdropZts, winnerAmount, 
-        winnerBonus, burnAmount, devAmount, airdropAmount, airdropRecipients
+        roundNumber, active, startHeight, endHeight, tokenStandard, pot, winner, 
+        hash, seed, winningTicket, bpsBurn, bpsDev, bpsAirdrop, airdropZts, 
+        winnerAmount, winnerBonus, burnAmount, devAmount, airdropAmount, airdropRecipients
       )
       VALUES (
-        $startHeight, $endHeight, '$tokenStandard', '$pot', '$winner', '$hash', 
-        '$seed', '$winningTicket', $bpsBurn, $bpsDev, $bpsAirdrop, '$airdropZts', 
-        '$winnerAmount', '$winnerBonus', '$burnAmount', '$devAmount', 
-        '$airdropAmount', $airdropRecipients
+        $roundNumber, true, $startHeight, $endHeight, '$tokenStandard', 
+        '0', '0', '0', '0', '0', 0, 0, 0, '0', '0', '0', '0', '0', '0', 0
       );
-      ''';
-
-  await lockTableAndInsert(Table.rounds, [
-    insertQuery(
-      raffle.startHeight,
-      raffle.endHeight,
-      raffle.token.tokenStandard.toString(),
-      raffle.pot.toString(),
-      winner.toString(),
-      results['hash'].toString(),
-      results['seed']!.toString(),
-      results['winningTicket']!.toString(),
-      Config.bpsBurn,
-      Config.bpsDev,
-      Config.bpsAirdrop,
-      Config.airdropZts.toString(),
-      results['winnerAmount']!.toString(),
-      '0', // set correct value later
-      results['burnAmount']!.toString(),
-      results['devAmount']!.toString(),
-      results['airdropAmount']!.toString(),
-      results['airdropRecipients']!,
-    )
+      '''
   ]);
 }
 
-Future<void> updateRoundsBonus(int roundNumber, BigInt bonus) async {
-  String updateQuery(
-    int roundNumber,
-    String bonus,
-  ) =>
-      '''
+updateRoundNoWinner(int roundNumber) async {
+  await lockTableAndInsert(Table.rounds, [
+    '''
       UPDATE ${Table.rounds} 
-      SET winnerBonus = '$bonus'
+      SET active = false
       WHERE roundNumber = $roundNumber;
-      ''';
-
-  await lockTableAndInsert(
-      Table.rounds, [updateQuery(roundNumber, bonus.toString())]);
+    '''
+  ]);
 }
 
-Future<void> updateBets(List<AccountBlock> bets) async {
+updateRound(
+  int roundNumber,
+  BigInt pot,
+  Address winner,
+  Map<String, dynamic> results,
+) async {
+  await lockTableAndInsert(Table.rounds, [
+    '''
+      UPDATE ${Table.rounds} 
+      SET
+        active = false,
+        pot = '${pot.toString()}',
+        winner = '${winner.toString()}',
+        hash = '${results['hash'].toString()}',
+        seed = '${results['seed']!.toString()}',
+        winningTicket = '${results['winningTicket']!.toString()}', 
+        bpsBurn = ${Config.bpsBurn},
+        bpsDev = ${Config.bpsDev},
+        bpsAirdrop = ${Config.bpsAirdrop},
+        airdropZts = '${Config.airdropZts.toString()}',
+        winnerAmount = '${results['winnerAmount']!.toString()}',
+        burnAmount = '${results['burnAmount']!.toString()}',
+        devAmount = '${results['devAmount']!.toString()}',
+        airdropAmount = '${results['airdropAmount']!.toString()}',
+        airdropRecipients = ${results['airdropRecipients']!}
+      WHERE roundNumber = $roundNumber;
+      '''
+  ]);
+}
+
+updateRoundBonus(int roundNumber, BigInt bonus) async {
+  await lockTableAndInsert(Table.rounds, [
+    '''
+      UPDATE ${Table.rounds} 
+      SET winnerBonus = '${bonus.toString()}'
+      WHERE roundNumber = $roundNumber;
+    '''
+  ]);
+}
+
+updateBets(List<AccountBlock> bets) async {
   String insertQuery(
     String hash,
     String address,
@@ -135,7 +129,7 @@ Future<void> updateBets(List<AccountBlock> bets) async {
       VALUES ('$hash', '$address', $roundNumber, '$tokenStandard', '$amount', $momentumHeight);
       ''';
 
-  int roundNumber = await getRoundNumber();
+  int roundNumber = (await getCurrentRoundStatus())['roundNumber'];
 
   List<String> betsQueries = [];
   for (AccountBlock b in bets) {
@@ -151,7 +145,7 @@ Future<void> updateBets(List<AccountBlock> bets) async {
   await lockTableAndInsert(Table.bets, betsQueries);
 }
 
-Future<void> updateZtsStats(
+updateZtsStats(
   List<AccountBlock> bets,
   Address winner,
   Map<String, dynamic> results,
@@ -186,26 +180,6 @@ Future<void> updateZtsStats(
     }
   }
 
-  String upsertQuery(
-    String address,
-    String betTotal,
-    String largestBet,
-    String wonTotal,
-    int roundsPlayed,
-    int roundsWon,
-  ) =>
-      '''
-      INSERT INTO $table (address, betTotal, largestBet, wonTotal, roundsPlayed, roundsWon)
-      VALUES ('$address', '$betTotal', '$largestBet', '$wonTotal', $roundsPlayed, $roundsWon)
-      ON CONFLICT (address) DO UPDATE
-      SET 
-        betTotal = '$betTotal',
-        largestBet = '$largestBet',
-        wonTotal = '$wonTotal',
-        roundsPlayed = $table.roundsPlayed + EXCLUDED.roundsPlayed,
-        roundsWon = $table.roundsWon + EXCLUDED.roundsWon;
-      ''';
-
   List<String> statsQueries = [];
   for (var p in players) {
     Map<String, dynamic> playerStats =
@@ -221,25 +195,35 @@ Future<void> updateZtsStats(
           : p['wonTotal'] = playerStats['wonTotal'];
     }
 
-    statsQueries.add(upsertQuery(
-      p['address'],
-      p['betTotal'].toString(),
-      p['largestBet'].toString(),
-      p['wonTotal'].toString(),
-      p['roundsPlayed'],
-      p['roundsWon'],
-    ));
+    statsQueries.add('''
+      INSERT INTO $table (address, betTotal, largestBet, wonTotal, roundsPlayed, roundsWon)
+      VALUES (
+      '${p['address']}', '${p['betTotal'].toString()}', 
+      '${p['largestBet'].toString()}', '${p['wonTotal'].toString()}', 
+      ${p['roundsPlayed']}, ${p['roundsWon']}
+      )
+      ON CONFLICT (address) DO UPDATE
+      SET 
+        betTotal = '${p['betTotal'].toString()}',
+        largestBet = '${p['largestBet'].toString()}',
+        wonTotal = '${p['wonTotal'].toString()}',
+        roundsPlayed = $table.roundsPlayed + EXCLUDED.roundsPlayed,
+        roundsWon = $table.roundsWon + EXCLUDED.roundsWon;
+      ''');
   }
   await lockTableAndInsert(table, statsQueries);
 }
 
-Future<void> lockTableAndInsert(String table, List<String> queries) async {
+lockTableAndInsert(String table, List<String> queries) async {
   try {
-    await db.conn.runInTransaction(() async {
-      await db.conn.query('LOCK TABLE $table IN SHARE MODE;').toList();
+    await DatabaseService().conn.runInTransaction(() async {
+      await DatabaseService()
+          .conn
+          .query('LOCK TABLE $table IN SHARE MODE;')
+          .toList();
 
       for (String q in queries) {
-        await db.conn.query(q).toList();
+        await DatabaseService().conn.query(q).toList();
       }
       logger.log(Level.INFO, '$table updated successfully');
     });

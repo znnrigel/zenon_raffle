@@ -13,7 +13,7 @@ bool firstSnapshot = false;
 // Opted to use a .json file instead of multiple db tables
 // Maybe I'll change this later
 
-Future<void> initIndexer() async {
+initIndexer() async {
   Map snapshotFile = await readSnapshot();
 
   int height = 0;

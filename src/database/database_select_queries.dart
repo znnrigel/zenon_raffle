@@ -1,21 +1,30 @@
 import 'package:postgresql2/postgresql.dart';
 import 'package:znn_sdk_dart/znn_sdk_dart.dart';
 
-import '../variables/global.dart';
 import 'database_service.dart';
 
-Future<int> getRoundNumber() async {
-  List r = await db.conn.query('''
-        SELECT roundnumber
-        FROM ${Table.rounds}
-        ORDER BY roundnumber DESC
-        LIMIT 1;
-        ''').toList();
-  return r.isNotEmpty && r[0][0] != null ? r[0][0] : 0;
+Future<Map<String, dynamic>> getCurrentRoundStatus() async {
+  List r = await DatabaseService().conn.query(
+    '''
+      SELECT roundNumber, active
+      FROM ${Table.rounds} 
+      ORDER BY roundNumber DESC
+      LIMIT 1;
+      ''',
+  ).toList();
+
+  Map<String, dynamic> m = {};
+  if (r.isNotEmpty) {
+    try {
+      m['roundNumber'] = r[0][0];
+      m['active'] = r[0][1];
+    } catch (e) {}
+  }
+  return m;
 }
 
 Future<int> getBetCountForRound(int roundNumber) async {
-  List r = await db.conn.query(
+  List r = await DatabaseService().conn.query(
       'SELECT COUNT(*) FROM ${Table.bets} WHERE roundNumber = @roundNumber', {
     'roundNumber': roundNumber,
   }).toList();
@@ -23,7 +32,7 @@ Future<int> getBetCountForRound(int roundNumber) async {
 }
 
 Future<int> getBetCountForZts(TokenStandard zts) async {
-  List r = await db.conn.query(
+  List r = await DatabaseService().conn.query(
       'SELECT COUNT(*) FROM ${Table.bets} WHERE tokenStandard = @tokenStandard',
       {
         'tokenStandard': zts.toString(),
@@ -32,12 +41,15 @@ Future<int> getBetCountForZts(TokenStandard zts) async {
 }
 
 Future<int> getCount(String table) async {
-  List r = await db.conn.query('SELECT COUNT(*) FROM $table').toList();
+  List r = await DatabaseService()
+      .conn
+      .query('SELECT COUNT(*) FROM $table')
+      .toList();
   return r.isNotEmpty && r[0][0] != null ? r[0][0] : 0;
 }
 
 Future<Map<String, BigInt>> getAmountStats(String tokenStandard) async {
-  List r = await db.conn.query('''
+  List r = await DatabaseService().conn.query('''
       SELECT pot, burnAmount, airdropAmount
       FROM ${Table.rounds} 
       WHERE tokenStandard = @tokenStandard;
@@ -62,7 +74,7 @@ Future<Map<String, BigInt>> getAmountStats(String tokenStandard) async {
 }
 
 Future<Map<Address, BigInt>> getLargestBet(String table) async {
-  List r = await db.conn.query('''
+  List r = await DatabaseService().conn.query('''
       SELECT address, largestBet
       FROM $table
       ''').toList();
@@ -77,7 +89,7 @@ Future<Map<Address, BigInt>> getLargestBet(String table) async {
 }
 
 Future<Map<String, dynamic>> getPlayer(String address) async {
-  List r = await db.conn.query('''
+  List r = await DatabaseService().conn.query('''
         SELECT *
         FROM ${Table.players}
         WHERE address = @address;
@@ -99,7 +111,7 @@ Future<Map<String, dynamic>> selectPlayerStats(
   String table, {
   String column = 'address',
 }) async {
-  List r = await db.conn.query('''
+  List r = await DatabaseService().conn.query('''
       SELECT * 
       FROM $table 
       WHERE $column = @address;
@@ -118,14 +130,43 @@ Future<Map<String, dynamic>> selectPlayerStats(
   return {};
 }
 
-Future<Map<String, dynamic>> selectRound(int roundNumber) async {
-  List r = await db.conn.query('''
+Future<Map<String, dynamic>> selectRound(
+    int roundNumber, bool canReturnCurrent) async {
+  if (canReturnCurrent) {
+    // edge case, current round columns are not populated with valid data
+    Map<String, dynamic> currentRound = await getCurrentRoundStatus();
+    if (currentRound.isNotEmpty &&
+        currentRound['roundNumber'] == roundNumber &&
+        currentRound['active']) {
+      List r = await DatabaseService().conn.query('''
+      SELECT * 
+      FROM ${Table.rounds} 
+      WHERE roundNumber = @roundNumber;
+      ''', {'roundNumber': roundNumber}).toList();
+      if (r.isNotEmpty) {
+        final row = r.first;
+        return {
+          'roundNumber': row[0],
+          'startHeight': row[1],
+          'endHeight': row[2],
+          'tokenStandard': TokenStandard.parse(row[3]),
+        };
+      }
+      return {};
+    }
+  }
+
+  List r = await DatabaseService().conn.query('''
       SELECT * 
       FROM ${Table.rounds} 
       WHERE roundNumber = @roundNumber;
       ''', {'roundNumber': roundNumber}).toList();
   if (r.isNotEmpty) {
     final row = r.first;
+
+    if (row[8] == '0') {
+      return {'winner': '0'};
+    }
     return {
       'roundNumber': row[0],
       'startHeight': row[1],
@@ -146,6 +187,7 @@ Future<Map<String, dynamic>> selectRound(int roundNumber) async {
       'bpsDev': row[16],
       'bpsAirdrop': row[17],
       'airdropZts': TokenStandard.parse(row[18]),
+      'active': row[19],
     };
   }
   return {};
@@ -155,7 +197,7 @@ Future<Map<Address, BigInt>> selectLeaderboardStats(
   String table,
   String column,
 ) async {
-  List r = await db.conn.query('''
+  List r = await DatabaseService().conn.query('''
       SELECT address, $column
       FROM $table;
       ''').toList();

@@ -19,8 +19,6 @@ late Raffle raffle;
 final raffleChannel = 'https://t.me/zenonraffle';
 final docsLink = 'https://zenon-raffle.gitbook.io/docs/';
 
-late final DatabaseService db;
-
 final int momentumTime = 10; // seconds
 
 TokenStandard ppZts = TokenStandard.parse('zts1hz3ys62vnc8tdajnwrz6pp');

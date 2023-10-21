@@ -6,13 +6,13 @@ import 'package:znn_sdk_dart/znn_sdk_dart.dart' hide logger;
 import '../config/config.dart';
 import '../variables/global.dart';
 
-Future<void> initZenon() async {
+initZenon() async {
   await nodeConnection();
   await unlockWallet();
   await initVars();
 }
 
-Future<void> nodeConnection() async {
+nodeConnection() async {
   while (znnClient.wsClient.status().name != 'running') {
     logger.log(Level.INFO, 'znnClient is not connected to: ${Config.ws}');
     await znnClient.wsClient.initialize(Config.ws);
@@ -26,20 +26,19 @@ Future<void> nodeConnection() async {
   }
 }
 
-Future<void> unlockWallet() async {
+unlockWallet() async {
   File keyStoreFile =
       File(path.join(znnDefaultWalletDirectory.path, Config.keystore));
   keyStore = await znnClient.keyStoreManager
       .readKeyStore(Config.passphrase, keyStoreFile);
   znnClient.defaultKeyStore = keyStore;
   znnClient.keyStoreManager.setKeyStore(keyStore);
-  znnClient.defaultKeyStorePath = keyStoreFile;
-  znnClient.defaultKeyPair = znnClient.defaultKeyStore!.getKeyPair();
-  Address address = (await znnClient.defaultKeyPair!.address)!;
+  znnClient.defaultKeyPair = znnClient.defaultKeyStore?.getKeyPair();
+  Address? address = (await znnClient.defaultKeyPair?.address);
   logger.log(Level.INFO, 'Unlocked address: $address');
 }
 
-Future<void> initVars() async {
+initVars() async {
   List<TokenStandard> supportedTokens = [znnZts, qsrZts, ppZts];
   for (TokenStandard zts in supportedTokens) {
     Token t = (await znnClient.embedded.token.getByZts(zts))!;
@@ -96,7 +95,7 @@ Future<BigInt> potSum(List<AccountBlock> bets) async {
   return pot;
 }
 
-Future<void> receiveAll(List<AccountBlock> bets) async {
+receiveAll(List<AccountBlock> bets) async {
   for (var block in bets) {
     try {
       await receiveTx(block.hash);
@@ -211,7 +210,7 @@ Future<bool> hasBalance(
   return ok;
 }
 
-Future<void> refundTx(List<AccountBlock> refunds) async {
+refundTx(List<AccountBlock> refunds) async {
   if (refunds.isNotEmpty) {
     for (AccountBlock block in refunds) {
       Address recipient = block.address;
@@ -235,7 +234,7 @@ Future<void> refundTx(List<AccountBlock> refunds) async {
   }
 }
 
-Future<void> burn(BigInt amount) async {
+burn(BigInt amount) async {
   // if token == znn or qsr -> donate to az
   // if token == ppZts -> burn
   // do not burn any other tokens yet
@@ -265,7 +264,7 @@ Future<Hash> getMomentumHash(int height) async =>
 
 // If anyone decides to send infinite transactions to the potAddress
 // We can attempt to mitigate DOS by proactively dealing with these
-Future<void> antiDos() async {
+antiDos() async {
   List<AccountBlock> unreceivedTx = await allUnreceivedTransactions();
   List<AccountBlock> refunds = [];
 
@@ -313,12 +312,12 @@ Future<List<Momentum>> getAllMomentums(int startHeight, int endHeight) async {
 // Purpose: to mitigate errors like
 // JSON-RPC error -32000: account-block previous block is missing
 // May not solve anything...
-Future<void> sendTx(AccountBlockTemplate template) async {
+sendTx(AccountBlockTemplate template) async {
   await znnClient.send(template);
   await Future.delayed(const Duration(milliseconds: 1000));
 }
 
-Future<void> receiveTx(Hash hash) async {
+receiveTx(Hash hash) async {
   await znnClient.send(AccountBlockTemplate.receive(hash));
   await Future.delayed(const Duration(milliseconds: 1000));
 }

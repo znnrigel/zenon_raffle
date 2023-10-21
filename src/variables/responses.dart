@@ -16,7 +16,7 @@ String infoMenu = '⚡ Zenon Raffle: Info Menu ⚡\n'
     'ℹ️ `/info`\n'
     '$channelInfo\n'
     '$voteInfo\n\n'
-    '*Stats Commands*:\n'
+    '*Stats*:\n'
     '$currentInfo\n'
     '$ticketsInfo\n'
     '$leaderboardInfo\n'
@@ -27,14 +27,13 @@ String channelInfo = '📢 `/channel` - announcement channel';
 String voteInfo =
     '🗳️ `/vote <znn/qsr/pp>` - vote for the next round\'s raffle token';
 
-String currentInfo = '🌀 `/current` - displays current round details';
+String currentInfo = '🌀 `/current` - current round details';
 String ticketsInfo =
-    '🎫 `/tickets <address>` - displays this round\'s raffle tickets for an address';
-String leaderboardInfo = '🏆 `/leaderboard` <bets/played/winnings>';
-String roundStatsInfo =
-    '💰 `/round <number>` - displays stats for a previous round';
+    '🎫 `/tickets <address>` - this round\'s raffle tickets for an address';
+String leaderboardInfo = '🏆 `/leaderboard <bets/played/winnings>`';
+String roundStatsInfo = '💰 `/round <number>` - stats for a previous round';
 String allRoundsStatsInfo =
-    '📊 `/stats [address]` - displays stats for all rounds or a specific address';
+    '📊 `/stats [address]` - stats for all rounds or a specific address';
 
 String adminInfo = 'Usage: `/admin` \n'
     '  *refund* - refunds all pending unreceived and starts a new round\n'
@@ -56,7 +55,7 @@ String roundStart(int start, int end, Token token) {
   return '🎟️ *New Round* 🎟️\n'
       'Momentums: *$start* to *$end*\n'
       'Duration: *${formatTime((end - start) * momentumTime)}*\n'
-      'Token: ${tokenEmoji(token)}*${token.symbol}* `${token.tokenStandard}`\n'
+      'Token: ${tokenEmoji(token)} *${token.symbol}* `${token.tokenStandard}`\n'
       'Deposit address: `${Config.addressPot}`';
 }
 
@@ -69,7 +68,7 @@ String roundOver(BigInt pot, Address winner, BigInt winningTicket, Token token,
     'Type `/round $roundNumber` for more details';
 
 String roundOverNoWinner = 'Round Over: no winner';
-String emergencyRefundMessage = '🛑 This round has been canceled 🛑\n'
+String emergencyRefundMessage = '🛑 This round has been canceled\n'
     '*All deposits for this round were refunded*';
 String raffleSuspended =
     'The raffle service is temporarily suspended while we calculate and distribute the funds.';
@@ -91,27 +90,30 @@ String currentStatsResponse(
     '*Round #$roundNumber*\n'
     'Time remaining: *${formatTime((endHeight - currentHeight) * momentumTime)}*\n'
     'Token: ${tokenEmoji(token)} *${token.symbol}*\n'
-    'Total tickets: *${totalTickets.toString()}*\n'
+    'Total tickets: *${totalTickets.toString()}* '
+    '${(token.decimals > 0 && totalTickets > BigInt.zero) ? '*(${formatAmount(totalTickets, token, shorten: true)})*\n' : '\n'}'
     'Number of deposits: *$betCount*\n\n'
     '${topWager != BigInt.zero ? '👑 *${formatAmount(topWager, token, shorten: true)} ${token.symbol}* | `$topAddress`\n' : ''}'
     'Votes: $votes\n'
-    'Burn: *$burn*% | Dev: *$dev*% | Airdrop: *$airdrop*%\n';
+    '${(token.tokenStandard == znnZts || token.tokenStandard == qsrZts) ? 'AZ donation' : 'Burn'}'
+    ': *$burn*% | Dev: *$dev*% | Airdrop: *$airdrop*%\n';
 
 String roundStatsResponse(
         Map<String, dynamic> stats, Token token, int betCount) =>
-    '📊 *Round #${stats['roundNumber']}* 📊\n '
+    '*Round #${stats['roundNumber']}*\n'
     'Winner: `${stats['winner']}`\n'
     'Pot: *${formatAmount(stats['pot'], token, shorten: true)} ${token.symbol}*\n'
-    'Hash: `${stats['hash']}`\n'
-    'Seed: *${stats['seed']}*\n'
     'Total tickets: *${stats['pot']}*\n'
-    'Winning ticket: *${formatAmount(stats['winningTicket'], token)}*\n\n'
+    'Winning ticket: *${stats['winningTicket']}* '
+    '${token.decimals > 0 ? '*(${formatAmount(stats['winningTicket'], token, shorten: true)})*\n\n' : '\n\n'}'
     'Number of Deposits: $betCount\n'
-    'Winner amount: *${formatAmount(stats['winnerAmount'], token, shorten: true)} ${token.symbol}* 🎉'
-    '${stats['winnerBonus'] > BigInt.zero ? ' Bonus: *${formatAmount(stats['winnerBonus'], token, shorten: true)} ${token.symbol}* 💰\n' : '\n'}'
-    'Burned amount: *${formatAmount(stats['burnAmount'], token, shorten: true)} ${token.symbol}* 🔥\n'
-    'Dev amount: *${formatAmount(stats['devAmount'], token, shorten: true)} ${token.symbol}* 👽\n'
-    'Airdrop amount: *${formatAmount(stats['airdropAmount'], token, shorten: true)} ${token.symbol}* 💸 *${stats['airdropRecipients']}* recipients';
+    'Winner: *${formatAmount(stats['winnerAmount'], token, shorten: true)} ${token.symbol}*'
+    '${stats['winnerBonus'] > BigInt.zero ? ' (Bonus: *${formatAmount(stats['winnerBonus'], token, shorten: true)} ${token.symbol}*)\n' : '\n'}'
+    '${(token.tokenStandard == znnZts || token.tokenStandard == qsrZts) ? 'AZ donation: *${formatAmount(stats['burnAmount'], token, shorten: true)} ${token.symbol}*\n' : 'Burned: *${formatAmount(stats['burnAmount'], token, shorten: true)} ${token.symbol}*\n'}'
+    'Dev: *${formatAmount(stats['devAmount'], token, shorten: true)} ${token.symbol}*\n'
+    'Airdrop: *${formatAmount(stats['airdropAmount'], token, shorten: true)} ${token.symbol}* (*${stats['airdropRecipients']}* recipients)\n\n'
+    'Hash: `${stats['hash']}`\n'
+    'Seed: `${stats['seed']}`\n';
 
 Future<String> allRoundStatsResponse(
   int countRounds,
@@ -152,7 +154,7 @@ Future<String> allRoundStatsResponse(
   String results = '';
   stats.forEach((e) => results += e);
 
-  return '📊 *Round Stats* 📊\n'
+  return '*Round Stats*\n'
       'Rounds: $countRounds\n'
       'Players: $countPlayers\n'
       'Bets: $countBets\n\n'
@@ -181,15 +183,15 @@ Future<String> playerStatsResponse(
       stats.add('*${token.symbol}*\n'
           '  Rounds won/played: *${numberOfRoundsWon[zts]} / ${numberOfRoundsPlayed[zts]}*\n'
           '  Total wagered: *${formatAmount(totalWagered[zts]!, token, shorten: true)} ${token.symbol}*\n'
-          '  Largest deposit: *${formatAmount(largestWager[zts]!, token, shorten: true)}  ${token.symbol}*\n'
-          '  Total won: *${formatAmount(wonTotal[zts]!, token, shorten: true)}  ${token.symbol}*\n'
+          '  Largest deposit: *${formatAmount(largestWager[zts]!, token, shorten: true)} ${token.symbol}*\n'
+          '  Total won: *${formatAmount(wonTotal[zts]!, token, shorten: true)} ${token.symbol}*\n'
           '\n');
     }
   }
   String results = '';
   stats.forEach((e) => results += e);
 
-  return '📊 *Stats*: `$address` 📊\n'
+  return '*Stats*: `$address`\n'
       'Rounds: *$countRounds*\n'
       'Wins: *$countWins*\n'
       'Deposits: *$countBets*\n\n'
@@ -229,7 +231,7 @@ Future<String> leaderboardMessage(Map players, String messageType) async {
   String results = '';
   topPlayers.forEach((e) => results += e);
 
-  return '📊 *Leaderboard: $title* 📊\n'
+  return '*Leaderboard: $title*\n'
       '$results';
 }
 

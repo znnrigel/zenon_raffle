@@ -14,15 +14,14 @@ import '../src/variables/global.dart';
 
 late final TelegramPlatform telegram;
 
-void main(List<String> args) async {
+main(List<String> args) async {
   try {
     initLogger();
     //Logger.root.level = Level.INFO;
     Logger.root.level = Level.FINER;
 
     Config.load();
-    db = DatabaseService();
-    await db.init();
+    await DatabaseService().init();
 
     await initZenon();
     await initIndexer();
@@ -34,12 +33,12 @@ void main(List<String> args) async {
   } catch (e, stackTrace) {
     logger.log(Level.SHOUT, 'main()', e, stackTrace);
   } finally {
-    await db.dispose();
+    await DatabaseService().dispose();
   }
   exit(0);
 }
 
-Future<void> manageRound() async {
+manageRound() async {
   bool initialRoundStart = true;
 
   while (raffleServiceEnabled) {
@@ -67,16 +66,24 @@ Future<void> manageRound() async {
   logger.log(Level.WARNING, 'manageRound(): Stopping raffle service');
 }
 
-Future<void> newRound(int duration, Token? token) async {
+newRound(int duration, Token? token) async {
   logger.log(Level.FINE, 'newRound(): duration $duration momentums');
+  Map<String, dynamic> currentRound = await getCurrentRoundStatus();
+  bool isNewRound = true;
+
+  if (currentRound.isNotEmpty) {
+    isNewRound = !currentRound['active'];
+  }
+
   raffle = Raffle(
     duration: duration,
     token: token!,
+    isNewRound: isNewRound,
   );
   await raffle.init();
 }
 
-Future<void> initTelegram() async {
+initTelegram() async {
   await runZonedGuarded(() async {
     await telegram.initiate();
   }, (error, stacktrace) async {
